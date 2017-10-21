@@ -1,19 +1,29 @@
-<!DOCTYPE html ng-app="showgo">
+<!DOCTYPE html>
 <html>
 <head>
 	<title>ShowGo V2</title>
 	<meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
-    <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.0.8/angular.min.js"></script>
+    <!--script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.4/angular.min.js"></script-->
     <script src="core.js"></script>
+    <script src="https://use.fontawesome.com/f699d519fc.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css">
+
 </head>
+<!-- app="myApp" ng-controller="myCtrl" -->
 <body>
-	<header>
-		<h1>ShowGo V2</h1>
-	</header>
-	<main>
-		<a href="/api/spotify_login/send_to_spotify_for_login">Log in with Spotify</a>
-	</main>
+	<div class="splash">
+		<header>
+			<h1>ShowGo V2</h1>
+		</header>
+		<main>
+			<a href="/api/spotify_login/send_to_spotify_for_login">Log in with Spotify</a>
+		</main>
+	</div>
+	<i class="fa fa-spinner fa-spin fa-3x fa-fw loading" aria-hidden="true"></i>
+	<div class="logged_in">
+		
+	</div>
 </body>
 </html>

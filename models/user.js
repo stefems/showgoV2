@@ -4,7 +4,8 @@ var UserSchema = new mongoose.Schema({
 	display_name: String,
 	spotify_token: String,
 	saved_songkick_id: String,
-	shows_saved: [String]
+	shows_saved: [String],
+	spotify_id: String
 });
 
 var User = mongoose.model("User", UserSchema);
