@@ -25,7 +25,7 @@ var generateRandomString = function(length) {
 var stateKey = 'spotify_auth_state';
 
 router.get('/send_to_spotify_for_login', function(req, res) {
-	// console.log("/send_to_spotify_for_login");
+	console.log("/send_to_spotify_for_login");
 	var state = generateRandomString(16);
 	res.cookie(stateKey, state);
 	//application requests authorization
@@ -41,7 +41,7 @@ router.get('/send_to_spotify_for_login', function(req, res) {
 });
 
 router.get('/spotify_redirect', function(req, res) {
-	// console.log("/spotify_redirect");
+	console.log("/spotify_redirect");
 	if (!req.error && req.query.code) {
 		get_spotify_access_token(req.query.code, res);
 	}
@@ -51,58 +51,112 @@ router.get('/spotify_redirect', function(req, res) {
 });
 
 router.get("/get_spotify_access_token", function(req, res) {
-	// console.log("/get_spotify_access_token");
+	console.log("/get_spotify_access_token");
 	let code = req.query.code;
 	get_spotify_access_token(code, res);
 });
 
 router.get('/spotify_check_token', function(req, res) {
 	console.log("/spotify_check_token");
-	let tokens = req.query.tokens;
+	let token_pairs = req.query.token_pairs;
 	
-	let token_promise = new Promise( (resolve) => {
-		get_spotify_user(tokens, resolve);
+	let token_promise = new Promise( (resolve, refresh) => {
+		get_spotify_user(token_pairs, resolve, refresh);
 	});
 
-	token_promise.then( (user_from_spotify) => {		
-		firebase_utils.get_user(user_from_spotify).then( (user) => {
-			res.json(user);
+	token_promise.then( (user_from_spotify) => {
+		if (user_from_spotify) {
+			firebase_utils.get_user(user_from_spotify).then( (user) => {
+				res.json(user);
+			});
+		}
+		else {
+			res.json(null);
+		}		
+		
+	})
+	.catch( (refresh_token_to_use) => {
+		use_refresh_token(refresh_token_to_use).then( (access_token) => {
+			let token_promise = new Promise( (resolve, refresh) => {
+				get_spotify_user([{access_token: access_token}], resolve, refresh);
+			});
+
+			token_promise.then( (user_from_spotify) => {
+				if (user_from_spotify) {
+					firebase_utils.get_user(user_from_spotify).then( (user) => {
+						res.json(user);
+					});
+				}
+				else {
+					res.json(null);
+				}
+			});
 		});
 	});
 	
-	function get_spotify_user(tokens, resolve) {
-		if (tokens.length > 0) {
-			console.log("attempting with token: " + tokens[0]);
+	function get_spotify_user(token_pairs, resolve, refresh) {
+		if (token_pairs.length > 0) {
 			var authOptions = {
 				url: 'https://api.spotify.com/v1/me',
 				headers: {
-				'Authorization': "Bearer " + tokens[0]
+				'Authorization': "Bearer " + token_pairs[0].access_token
 			},
 				json: true
 			};
-
 			request.get(authOptions, function(error, response, body) {
 				if (!error && response.statusCode === 200) {
-					body.spotify_access_token = tokens[0];
+					body.spotify_access_token = token_pairs[0].access_token;
+					body.spotify_refresh_token = token_pairs[0].refresh_token;
 					resolve(body);
 				}
+				else if (!error && response.statusCode === 401) {
+					refresh(token_pairs[0].refresh_token);
+				}
 				else {
-					tokens.splice(0, 1)
-					get_spotify_user(tokens, resolve);
+					token_pairs.splice(0, 1)
+					get_spotify_user(token_pairs, resolve);
 				}
 
 			});
 		}
 		else {
-			console.log("no more tokens to check");
+			console.log("no more token_pairs to check");
 			resolve(null);
 		}
 	}
 
 });
 
+function use_refresh_token(token, res_callback) {
+	let refresh_token_promise = new Promise ( (resolve) => {
+		var authOptions = {
+	      url: 'https://accounts.spotify.com/api/token',
+	      form: {
+	      	grant_type: 'refresh_token',
+	        refresh_token: token
+	      },
+	      headers: {
+	        'Authorization': 'Basic ' + (new Buffer(env.spotify_app_id + ':' + env.spotify_app_secret).toString('base64'))
+	      },
+	      json: true
+	    };
+		request.post(authOptions, function(error, response, body) {
+	 		if (!error && response.statusCode === 200 && response.statusCode != 400) {
+	 			resolve(body.access_token);
+			}
+			else {
+				console.log("error: " + error);
+
+			}
+		});
+	});
+
+	return refresh_token_promise;
+}
+
 function get_spotify_access_token(code, res) {
-	// console.log("get_spotify_access_token()");
+	console.log("get_spotify_access_token()");
+
 	var authOptions = {
       url: 'https://accounts.spotify.com/api/token',
       form: {
