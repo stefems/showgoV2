@@ -1,3 +1,5 @@
+let user = null;
+
 check_for_logged_in();
 
 function check_for_logged_in() {
@@ -38,8 +40,18 @@ function check_for_logged_in() {
 	}
 }
 
-function logged_in(user) {
+function logged_in(user_passed_in) {
+	user = user_passed_in;
 	history.pushState(null, "", location.href.split("?")[0]);
+	if (user.songkick_home_location_id === "") {
+		update_user_location(user.spotify_access_token);
+	}
+	else {
+		load_feed();
+	}
+}
+
+function load_feed() {
 	$(document).ready( () => {
 		$(".loading").css("display", "none");
 		$(".logged_in").css("display", "block");
@@ -48,12 +60,43 @@ function logged_in(user) {
 }
 
 function splash() {
+	user = null;
 	$(document).ready( () => {
 		$(".loading").css("display", "none");
 		$(".splash").css("display", "block");
 	});
 }
 
+
+function update_user_location(token) {
+	if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition( (position) => {
+        	let lat_long = { lat: position.coords.latitude, long: position.coords.longitude };
+        	$.ajax({
+				url: "/api/user_changes/update_location",
+				type: "POST",
+				data: {location: lat_long, access_token: token},
+				success: function(response) {
+					if (response) {
+						console.log(response);
+						load_feed();
+					}
+					else {
+						console.log("failed to post the locaiton.");
+						splash();
+					}
+				},
+				error: function(error) {
+					console.log(error);
+					splash();
+				}
+			});
+        });
+    }
+    else {
+        x.innerHTML = "Geolocation is not supported by this browser.";
+    }
+}
 /*
 
 var app = angular.module('myApp', []);

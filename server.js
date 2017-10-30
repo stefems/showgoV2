@@ -6,6 +6,8 @@ var app      = express();
 var mongoose = require('mongoose');
 var bodyParser = require('body-parser');                     
 var spotify_login = require('./routes/spotify_login');
+var user_changes = require('./routes/user_changes');
+
 
 // configuration =================
 
@@ -16,6 +18,7 @@ app.use(bodyParser.json({ type: 'application/vnd.api+json' })); // parse applica
 
 
 app.use('/api/spotify_login', spotify_login);
+app.use('/api/user_changes', user_changes);
 
 app.get('*', function(req, res) {
     res.sendfile('./public/index.html'); // load the single view file (angular will handle the page changes on the front-end)
