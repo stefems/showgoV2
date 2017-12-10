@@ -67,7 +67,6 @@ function splash() {
 	});
 }
 
-
 function update_user_location(token) {
 	if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition( (position) => {
@@ -97,13 +96,3 @@ function update_user_location(token) {
         x.innerHTML = "Geolocation is not supported by this browser.";
     }
 }
-/*
-
-var app = angular.module('myApp', []);
-
-app.controller('myCtrl', function($scope, $http) {
-
-
-
-});
-*/

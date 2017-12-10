@@ -10,6 +10,7 @@ var env;
 require("../env_util.js").then( (env_to_use) => {
 	env = env_to_use;
 });
+var login_utils = require("../route_utils/login_utils.js");
 var firebase_utils = require("../route_utils/firebase_utils.js");
 
 router.post('/update_location', function(req, res) {
@@ -24,6 +25,48 @@ router.post('/update_location', function(req, res) {
 
 			}
 		}
+	});
+});
+
+
+router.get('/user', function(req, res) {
+	console.log("GET /user");
+	let token_pairs = JSON.parse(req.query.access_refresh_pairs);
+	console.log(token_pairs[0]);
+
+	let user_promise = new Promise( (resolve, refresh) => {
+		login_utils.get_spotify_user(token_pairs, resolve, refresh);
+	});
+
+	user_promise.then( (user_from_spotify) => {
+		console.log(user_from_spotify);
+		if (user_from_spotify) {
+			firebase_utils.get_user(user_from_spotify).then( (user) => {
+				res.json(user);
+			});
+		}
+		else {
+			res.json(null);
+		}		
+		
+	})
+	.catch( (refresh_token_to_use) => {
+		login_utils.use_refresh_token(refresh_token_to_use).then( (access_token) => {
+			let token_promise = new Promise( (resolve, refresh) => {
+				login_utils.get_spotify_user([{access_token: access_token}], resolve, refresh);
+			});
+
+			token_promise.then( (user_from_spotify) => {
+				if (user_from_spotify) {
+					firebase_utils.get_user(user_from_spotify).then( (user) => {
+						res.json(user);
+					});
+				}
+				else {
+					res.json(null);
+				}
+			});
+		});
 	});
 });
 
