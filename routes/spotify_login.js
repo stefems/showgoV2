@@ -9,6 +9,8 @@ require("../env_util.js").then( (env_to_use) => {
 });
 var firebase_utils = require("../route_utils/firebase_utils.js");
 var login_utils = require("../route_utils/login_utils.js");
+var user_utils = require("../route_utils/user_utils.js");
+
 
 var generateRandomString = function(length) {
   var text = '';
@@ -27,7 +29,7 @@ router.get('/send_to_spotify_for_login', function(req, res) {
 	var state = generateRandomString(16);
 	res.cookie(stateKey, state);
 	//application requests authorization
-	var scope = 'user-read-private user-read-email';
+	var scope = 'user-read-private user-read-email user-library-read user-read-recently-played user-top-read user-follow-read';
 	res.redirect('https://accounts.spotify.com/authorize?' +
 	querystring.stringify({
 	  response_type: 'code',

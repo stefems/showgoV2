@@ -20,17 +20,14 @@ module.exports = {
 			};
 			request.get(authOptions, function(error, response, body) {
 				if (!error && response.statusCode === 200) {
-					console.log("user found");
 					body.spotify_access_token = token_pairs[0].access_token;
 					body.spotify_refresh_token = token_pairs[0].refresh_token;
 					resolve(body);
 				}
 				else if (!error && response.statusCode === 401) {
-					console.log("refresh?");
 					refresh(token_pairs[0].refresh_token);
 				}
 				else {
-					console.log("pair two");
 					token_pairs.splice(0, 1);
 					get_spotify_user(token_pairs, resolve);
 				}
@@ -38,7 +35,6 @@ module.exports = {
 			});
 		}
 		else {
-			console.log("no more token_pairs to check");
 			resolve(null);
 		}
 	},
@@ -101,5 +97,4 @@ module.exports = {
 			}
 		});
 	}
-
 };

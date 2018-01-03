@@ -32,21 +32,19 @@ router.post('/update_location', function(req, res) {
 router.get('/user', function(req, res) {
 	console.log("GET /user");
 	let token_pairs = JSON.parse(req.query.access_refresh_pairs);
-	console.log(token_pairs[0]);
 
 	let user_promise = new Promise( (resolve, refresh) => {
 		login_utils.get_spotify_user(token_pairs, resolve, refresh);
 	});
 
 	user_promise.then( (user_from_spotify) => {
-		console.log(user_from_spotify);
 		if (user_from_spotify) {
 			firebase_utils.get_user(user_from_spotify).then( (user) => {
 				res.json(user);
 			});
 		}
 		else {
-			res.json(null);
+			res.status(500).send({ error: "we failed to retrieve the user." });
 		}		
 		
 	})
@@ -63,11 +61,30 @@ router.get('/user', function(req, res) {
 					});
 				}
 				else {
-					res.json(null);
+					res.status(500).send({ error: "we failed to retrieve the user." });
 				}
 			});
 		});
 	});
 });
 
+router.put('/user/artist')
+
 module.exports = router;
+
+/*
+	GET 	user/artists			list artists
+	GET 	user/artists/{id}		get artist
+	DELETE	user/artists/{id}		remove artist
+	POST 	user/artists			add to artists
+	GET 	user/artists/roots 		get root artists
+	PUT 	user/artists			update artist list
+
+	utils:
+		update user artists 
+
+
+
+	artist { spotify_id: '', tags/genres: [], root: true/false }
+	user   {name: '', artists: [], last_spotify_update}
+*/
