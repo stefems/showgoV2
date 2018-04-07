@@ -21,10 +21,6 @@ app.use(bodyParser.json({ type: 'application/vnd.api+json' })); // parse applica
 app.use('/api/spotify_login', spotify_login);
 app.use('/api/user_changes', user_changes);
 
-app.get('*', function(req, res) {
-    res.sendfile('./public/index.html'); // load the single view file (angular will handle the page changes on the front-end)
-});
-
 app.listen(3000);
 console.log("App listening on port 3000");
 

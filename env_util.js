@@ -8,19 +8,10 @@ var env_promise = new Promise( (success, failure) => {
     } 
     else if(err.code == 'ENOENT') {
       env = {
-        facebook_app_id:       process.env.facebook_app_id,
-        facebook_app_secret:    process.env.facebook_app_secret,
         spotify_app_id:     process.env.spotify_app_id,
         spotify_app_secret:   process.env.spotify_app_secret,
-        domain:         "localhost",
-        firebase_key: process.env.firebase_key,
-        firebase_domain: process.env.firebase_domain,
-        firebase_url: process.env.firebase_url,
-        firebase_project_id: process.env.firebase_project_id,
-        firebase_bucket: process.env.firebase_bucket,
-        firebase_messaging_id: process.env.firebase_messaging_id,
-        firebase_user: process.env.firebase_user,
-        firebase_pwd: process.env.firebase_pwd
+		front_end_domain: process.env.front_end_domain,
+		api_domain: process.env.api_domain
       };
     }
     success(env);

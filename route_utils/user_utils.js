@@ -5,46 +5,41 @@ var env;
 require("../env_util.js").then( (env_to_use) => {
 	env = env_to_use;
 });
-var firebase_utils = require("../route_utils/firebase_utils.js");
 
-module.exports = {
-
+let export_me = {
 	
 	update_user_artists: function(user, resolve) {
 		user.lastUpdated = Date.now();
-		//PERFORMANCE: this code will wait for each artist list to be generated and then all of them will
-		// 			   be added to the user (with checks to ensure they don't need to be in the list.
-		var artist_promise_array = [this.get_saved_tracks_artists(user)];//, get_saved_albums_artists(user), get_recent_artists(user)];
-
-		Promise.all(artist_promise_array).then((artists) => {
-			console.log(artists);
-			resolve(user);
-			// //PERFORMANCE: the artist sources are likely to have duplicates
-			// artists.forEach( (artists_source) => {
-			// 	artists_source.forEach( (artist) => {
-			// 		store_artist(user, artist);
-			// 	});
-			// });
-			//SAVE THAT SHIT
-		});
-
-
 		
-			//stop cursoring when added_at
-		// /v1/me/albums get saved albums
-			//stop cursoring when added_at
-		// /v1/me/following get artists following
-			//don't see an order to it, might be time-consuming to parse and compare. might want instead during the song selection process to check if they're here.
-		// /v1/me/playlists get playlists (created or following)
-			//might have lengthy cursoring
-		// v1/me/top/artists||tracks get their top artists and tracks
-		// /v1/me/player/recently-played get recently played tracks
-			//use played_at to stop cursoring
+		var artist_promise_array = [this.get_saved_tracks_artists(user), this.get_saved_albums_artists(user), 
+									this.get_following_artists(user), this.get_top_artists(user),
+									this.get_recent_artists(user), this.get_artists_from_playlists(user)];
+
+		Promise.all(artist_promise_array).then((artist_groupings) => {
+			let artists_from_playlists = {};
+			artist_groupings[5].forEach( (playlist) => {
+				Object.assign(artists_from_playlists, playlist);
+			});
+			user.top_artists = artist_groupings[3];
+			if (user.artists === '') {
+				user.artists = {};
+			}
+			Object.assign(user.artists, artist_groupings[0], 
+					   artist_groupings[1], artist_groupings[2], 
+					   artist_groupings[3], artist_groupings[4],
+					   artists_from_playlists);
+			var firebase_utils = require("./firebase_utils.js");
+			firebase_utils.save_user(user).then( (save_result) => {
+				resolve(user);
+			});			
+		});
 	},
+
 	get_saved_tracks_artists: function (user) {
-		let get_saved_tracks_artists_promise = new Promise( (resolve) => {
+
+		function recursively_get_artists_from_saved_tracks(artists, resolve, next) {
 			var authOptions = {
-				url: 'https://api.spotify.com/v1/me/tracks',
+				url: next || 'https://api.spotify.com/v1/me/tracks?limit=50',
 				headers: {
 					'Authorization': "Bearer " + user.spotify_access_token
 				},
@@ -52,131 +47,342 @@ module.exports = {
 			};
 			request.get(authOptions, function(error, response, body) {
 				if (!error && response.statusCode === 200) {
-					// 
-					resolve(body.items[0].track.artists[0].name);
+					//PERFORMANCE: so this approach goes through all of their saved tracks. 
+					// We'll already have a history of their saved tracks... 
+					// we'll filter these out later but it'd save time to remove these now
+					// to reduce time used for sending out these requests
+					body.items.forEach( (song) => {
+						song.track.artists.forEach( (artist) => {
+							if (artist.id){
+							artists[artist.id] = artist.name;
+						}
+						});
+					});
+					if (body.next) {
+						recursively_get_artists_from_saved_tracks(artists, resolve, body.next);
+					}
+					else {
+						resolve(artists);
+					}
 				}
 				else {
 					console.log(error || response);
+					resolve(artists || null);
 				}
 			});
+		}
+
+		let get_saved_tracks_artists_promise = new Promise( (resolve) => {
+			let artists = {};
+			recursively_get_artists_from_saved_tracks(artists, resolve);
 		});
 
 		return get_saved_tracks_artists_promise;
 	},
-	/*
+	
 	get_saved_albums_artists: function(user) {
 
-		return new Promise( (resolve) => {
-
-			var artists = [];
-			fetch_saved_albums(true);
-
-			function fetch_saved_albums(continue_cursoring){
-
-				if (continue_cursoring) {
-
-					var authOptions = {
-						url: 'https://api.spotify.com/v1/me/albums',
-						headers: {
-						'Authorization': "Bearer " + user_id.spotify_access_token
-					},
-						json: true
-					};
-					request.get(authOptions, function(error, response, body) {
-						if (!error && body) {
-							var albums = body.albums;
-							albums.forEach( (album) => {
-								if (album.added_at < user.update_time) {
-									var artist = { name: artist_name, id:  album.artist_id, genres: album.artist_genres};
-									artists.push(artist);
-								}
-								else {
-									continue_cursoring = false;
-									//HOW TO BREAK FROM FOR EACH?
-									break;
-								}
-							});
+		function recursively_get_artists_from_saved_albums(artists, resolve, next) {
+			var authOptions = {
+				url: next || 'https://api.spotify.com/v1/me/albums?limit=50',
+				headers: {
+					'Authorization': "Bearer " + user.spotify_access_token
+				},
+				json: true
+			};
+			request.get(authOptions, function(error, response, body) {
+				if (!error && response.statusCode === 200) {
+					//PERFORMANCE: so this approach goes through all of their saved tracks. 
+					// We'll already have a history of their saved tracks... 
+					// we'll filter these out later but it'd save time to remove these now
+					// to reduce time used for sending out these requests
+					body.items.forEach( (album) => {
+						album.album.artists.forEach( (artist) => {
+							if (artist.id){
+							artists[artist.id] = artist.name;
 						}
-						else {
-							continue_cursoring = false;
-						}
-						fetch_saved_albums(continue_cursoring);
+						});
 					});
+					if (body.next) {
+						recursively_get_artists_from_saved_albums(artists, resolve, body.next);
+					}
+					else {
+						resolve(artists);
+					}
 				}
 				else {
-					resolve(artists);
+					console.log(error || response);
+					resolve(artists || null);
 				}
-			}
-		});
-	},
-	get_followers_artists: function() {
-		//RETURN PROMISE
-		var authOptions = {
-			url: 'https://api.spotify.com/v1/me/tracks',
-			headers: {
-			'Authorization': "Bearer " + user_id.spotify_access_token
-		},
-			json: true
-		};
-		request.get(authOptions, function(error, response, body) {
-		});
-	},
-	get_playlists_artists: function() {
-		//RETURN PROMISE
-		var authOptions = {
-			url: 'https://api.spotify.com/v1/me/tracks',
-			headers: {
-			'Authorization': "Bearer " + user_id.spotify_access_token
-		},
-			json: true
-		};
-		request.get(authOptions, function(error, response, body) {
-		});
-	},
-	get_top_artists: function() {
-		//RETURN PROMISE
-		var authOptions = {
-			url: 'https://api.spotify.com/v1/me/tracks',
-			headers: {
-			'Authorization': "Bearer " + user_id.spotify_access_token
-		},
-			json: true
-		};
-		request.get(authOptions, function(error, response, body) {
-		});
-	},
-	get_recent_artists: function() {
-		//RETURN PROMISE
-		var authOptions = {
-			url: 'https://api.spotify.com/v1/me/tracks',
-			headers: {
-			'Authorization': "Bearer " + user_id.spotify_access_token
-		},
-			json: true
-		};
-		request.get(authOptions, function(error, response, body) {
-		});
-	},
-	store_artist: function(user, artist) {
-		//hashing function to find bucket
-		//iterate through bucket for artist
-		//push if not found
-	},
-	*/
-	needs_artist_update: function(user) {
-		return true;
+			});
+		}
 
-		//return Math.floor((user.lastUpdated - Date.now()) / (1000*60*60*24)) < -1;
+
+		let get_saved_albums_artists_promise = new Promise( (resolve) => {
+			let artists = {};
+			recursively_get_artists_from_saved_albums(artists, resolve);
+		});
+
+		return get_saved_albums_artists_promise;
+	},
+	
+	get_following_artists: function(user) {
+		function recursively_get_artists_from_following(artists, resolve, next) {
+			var authOptions = {
+				url: next || 'https://api.spotify.com/v1/me/following?limit=50&type=artist',
+				headers: {
+					'Authorization': "Bearer " + user.spotify_access_token
+				},
+				json: true
+			};
+			request.get(authOptions, function(error, response, body) {
+				if (!error && response.statusCode === 200) {
+					//PERFORMANCE: so this approach goes through all of their saved tracks. 
+					// We'll already have a history of their saved tracks... 
+					// we'll filter these out later but it'd save time to remove these now
+					// to reduce time used for sending out these requests
+					body.artists.items.forEach( (artist) => {
+						if (artist.id){
+							artists[artist.id] = artist.name;
+						}
+					});
+					if (body.next) {
+						recursively_get_artists_from_following(artists, resolve, body.next);
+					}
+					else {
+						resolve(artists);
+					}
+				}
+				else {
+					console.log(error || response);
+					resolve(artists || null);
+				}
+			});
+		}
+
+
+		let get_following_artists_promise = new Promise( (resolve) => {
+			let artists = {};
+			recursively_get_artists_from_following(artists, resolve);
+		});
+
+		return get_following_artists_promise;
+	},
+	
+	get_playlists: function(user) {
+		function recursively_get_playlists(playlist_urls, resolve, next) {
+			var authOptions = {
+				url: next || 'https://api.spotify.com/v1/me/playlists?limit=50',
+				headers: {
+					'Authorization': "Bearer " + user.spotify_access_token
+				},
+				json: true
+			};
+			request.get(authOptions, function(error, response, body) {
+				if (!error && response.statusCode === 200) {
+					//PERFORMANCE: so this approach goes through all of their saved tracks. 
+					// We'll already have a history of their saved tracks... 
+					// we'll filter these out later but it'd save time to remove these now
+					// to reduce time used for sending out these requests
+					body.items.forEach( (playlist) => {
+						playlist_urls.push(playlist.tracks.href);
+					});
+					if (body.next) {
+						recursively_get_playlists(playlist_urls, resolve, body.next);
+					}
+					else {
+						resolve(playlist_urls);
+					}
+				}
+				else {
+					console.log(error || response);
+					resolve(playlist_urls || null);
+				}
+			});
+		}
+
+		let get_playlists_promise = new Promise( (resolve) => {
+			let playlist_urls = [];
+			recursively_get_playlists(playlist_urls, resolve);
+		});
+
+		return get_playlists_promise;	
+	},
+
+	get_artists_from_playlists: function(user) {
+		let artists_from_all_playlists_promise = new Promise( (resolve) => {
+			this.get_playlists(user).then( (playlist_urls) => {
+				let playlist_promises = [];
+				playlist_urls.forEach( (url) => {
+					let playlist_url = url;
+					let playlist_artists_promise = new Promise( (send_artists) => {
+						//recursive shit to get tracks and then artists
+						this.get_artists_from_playlist(user, playlist_url).then( (artists) => {
+							send_artists(artists);
+						});
+					});
+
+					playlist_promises.push(playlist_artists_promise);
+				});
+				let artists_from_all_playlists = Promise.all(playlist_promises);
+				resolve(artists_from_all_playlists);
+			});
+		});
+
+		return artists_from_all_playlists_promise
+	},
+		
+	get_artists_from_playlist: function(user, playlist_url) {
+		function recursively_get_artists_from_playlist(artists, resolve, next) {
+			var authOptions = {
+				url: next || playlist_url,
+				headers: {
+					'Authorization': "Bearer " + user.spotify_access_token
+				},
+				json: true
+			};
+			request.get(authOptions, function(error, response, body) {
+				if (!error && response.statusCode === 200) {
+					//PERFORMANCE: so this approach goes through all of their saved tracks. 
+					// We'll already have a history of their saved tracks... 
+					// we'll filter these out later but it'd save time to remove these now
+					// to reduce time used for sending out these requests
+					body.items.forEach( (song) => {
+						song.track.artists.forEach( (artist) => {
+							if (artist.id){
+								artists[artist.id] = artist.name;
+							}
+						});
+					});
+					if (body.next) {
+						recursively_get_artists_from_playlist(artists, resolve, body.next);
+					}
+					else {
+						resolve(artists);
+					}
+				}
+				else {
+					console.log(error || response);
+					resolve(artists || null);
+				}
+			});
+		}
+
+
+		let get_artists_from_playlist_promise = new Promise( (resolve) => {
+			let artists = {};
+			recursively_get_artists_from_playlist(artists, resolve);
+		});
+
+		return get_artists_from_playlist_promise;	
+	},
+
+	get_top_artists: function(user) {
+		function recursively_get_artists_from_top_artists(artists, resolve, next) {
+			var authOptions = {
+				url: next || 'https://api.spotify.com/v1/me/top/artists?limit=50',
+				headers: {
+					'Authorization': "Bearer " + user.spotify_access_token
+				},
+				json: true
+			};
+			request.get(authOptions, function(error, response, body) {
+				if (!error && response.statusCode === 200) {
+					//PERFORMANCE: so this approach goes through all of their saved tracks. 
+					// We'll already have a history of their saved tracks... 
+					// we'll filter these out later but it'd save time to remove these now
+					// to reduce time used for sending out these requests
+					body.items.forEach( (artist) => {
+						if (artist.id){
+								artists[artist.id] = artist.name;
+							}
+					});
+					if (body.next) {
+						recursively_get_artists_from_top_artists(artists, resolve, body.next);
+					}
+					else {
+						resolve(artists);
+					}
+				}
+				else {
+					console.log(error || response);
+					resolve(artists || null);
+				}
+			});
+		}
+
+
+		let get_top_artists_promise = new Promise( (resolve) => {
+			let artists = {};
+			recursively_get_artists_from_top_artists(artists, resolve);
+		});
+
+		return get_top_artists_promise;
+	},
+	
+	get_recent_artists: function(user) {
+		function recursively_get_recent_artists(artists, resolve, next) {
+			var authOptions = {
+				url: next || 'https://api.spotify.com/v1/me/player/recently-played?limit=50',
+				headers: {
+					'Authorization': "Bearer " + user.spotify_access_token
+				},
+				json: true
+			};
+			request.get(authOptions, function(error, response, body) {
+				if (!error && response.statusCode === 200) {
+					//PERFORMANCE: so this approach goes through all of their saved tracks. 
+					// We'll already have a history of their saved tracks... 
+					// we'll filter these out later but it'd save time to remove these now
+					// to reduce time used for sending out these requests
+					body.items.forEach( (song) => {
+						song.track.artists.forEach( (artist) => {
+							if (artist.id){
+							artists[artist.id] = artist.name;
+						}
+						});
+					});
+					if (body.next) {
+						recursively_get_artists_from_recents(artists, resolve, body.next);
+					}
+					else {
+						resolve(artists);
+					}
+				}
+				else {
+					console.log(error || response);
+					resolve(artists || null);
+				}
+			});
+		}
+
+
+		let get_recent_artists_promise = new Promise( (resolve) => {
+			let artists = {};
+			recursively_get_recent_artists(artists, resolve);
+		});
+
+		return get_recent_artists_promise;
+	},
+
+	needs_artist_update: function(user) {
+		// return true;
+		if (!user.lastUpdated) {
+			return true;
+		}
+		else if (Math.floor((user.lastUpdated - Date.now()) / (1000*60*60*24)) < -1) {
+			return true;
+		}
 	},
 
 	check_user_artist_update: function(user) {
 		let check_user_artist_update_promise = new Promise( (resolve) => {
 			if (this.needs_artist_update(user)) {
-				console.log("user needs artist update");
+				console.log("  User needs artist update.");
 				this.update_user_artists(user, resolve);
 			}
 			else {
-				console.log("user doesn't need artist update");
+				console.log("  User doesn't need artist update.");
 				resolve(user);
 			}
 		});
@@ -185,3 +391,5 @@ module.exports = {
 	}
 
 };
+
+module.exports = export_me;

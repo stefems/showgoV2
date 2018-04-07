@@ -34,17 +34,21 @@ router.get('/user', function(req, res) {
 	let token_pairs = JSON.parse(req.query.access_refresh_pairs);
 
 	let user_promise = new Promise( (resolve, refresh) => {
+		console.log("  Getting user from Spotify login.");
 		login_utils.get_spotify_user(token_pairs, resolve, refresh);
 	});
 
 	user_promise.then( (user_from_spotify) => {
 		if (user_from_spotify) {
+			console.log("  Spotify gave us a user.");
 			firebase_utils.get_user(user_from_spotify).then( (user) => {
+				console.log("  Sending user.\n\n");
 				res.json(user);
 			});
 		}
 		else {
-			res.status(500).send({ error: "we failed to retrieve the user." });
+			console.log("  Sending error.\n\n");
+			res.status(500).send({ error: "  We failed to retrieve the user." });
 		}		
 		
 	})
@@ -57,10 +61,12 @@ router.get('/user', function(req, res) {
 			token_promise.then( (user_from_spotify) => {
 				if (user_from_spotify) {
 					firebase_utils.get_user(user_from_spotify).then( (user) => {
+						console.log("  Sending user.\n\n");
 						res.json(user);
 					});
 				}
 				else {
+					console.log("  Sending error.\n\n");
 					res.status(500).send({ error: "we failed to retrieve the user." });
 				}
 			});
@@ -75,6 +81,7 @@ module.exports = router;
 /*
 	GET 	user/artists			list artists
 	GET 	user/artists/{id}		get artist
+	GET 	user/artists/random		get random artist
 	DELETE	user/artists/{id}		remove artist
 	POST 	user/artists			add to artists
 	GET 	user/artists/roots 		get root artists

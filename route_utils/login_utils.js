@@ -18,7 +18,7 @@ module.exports = {
 			},
 				json: true
 			};
-			request.get(authOptions, function(error, response, body) {
+			request.get(authOptions, (error, response, body) => {
 				if (!error && response.statusCode === 200) {
 					body.spotify_access_token = token_pairs[0].access_token;
 					body.spotify_refresh_token = token_pairs[0].refresh_token;
@@ -29,7 +29,8 @@ module.exports = {
 				}
 				else {
 					token_pairs.splice(0, 1);
-					get_spotify_user(token_pairs, resolve);
+
+					this.get_spotify_user(token_pairs, resolve);
 				}
 
 			});
@@ -82,13 +83,13 @@ module.exports = {
 		  json: true
 		};
 		request.post(authOptions, function(error, response, body) {
-				if (!error && response.statusCode === 200 && response.statusCode != 400) {
-					var access_token = body.access_token;
-					var refresh_token = body.refresh_token;
-					let url = 'http://' + env.front_end_domain + '?' + querystring.stringify({
+			if (!error && response.statusCode === 200 && response.statusCode != 400) {
+				var access_token = body.access_token;
+				var refresh_token = body.refresh_token;
+				let url = 'http://' + env.front_end_domain + '?' + querystring.stringify({
 		            access_token: access_token,
 					refresh_token: refresh_token
-		        });
+				});
 				res.redirect(url);
 			}
 			else {

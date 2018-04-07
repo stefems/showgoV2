@@ -29,13 +29,13 @@ router.get('/send_to_spotify_for_login', function(req, res) {
 	var state = generateRandomString(16);
 	res.cookie(stateKey, state);
 	//application requests authorization
-	var scope = 'user-read-private user-read-email user-library-read user-read-recently-played user-top-read user-follow-read';
+	var scope = 'user-read-playback-state streaming user-read-private playlist-read-collaborative user-read-email user-library-read user-read-recently-played user-top-read user-follow-read';
 	res.redirect('https://accounts.spotify.com/authorize?' +
 	querystring.stringify({
 	  response_type: 'code',
 	  client_id: env.spotify_app_id,
 	  scope: scope,
-	  redirect_uri: 'http://' + env.api_domain + '/api/spotify_login/spotify_redirect',
+	  redirect_uri: 'http://localhost:3000/api/spotify_login/spotify_redirect',
 	  state: state
 	}));
 });
